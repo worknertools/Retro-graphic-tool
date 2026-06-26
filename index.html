@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <title>Type play</title>
+    
+
+  </head>
+    
+  <body>
+  <!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>印章复刻工具 Pro - High Res Edition</title>
+    <style>
+        :root { 
+            --line: #000; --bg: #fff; --lw: 1px; 
+            --main-w: 85vmin; 
+            --ctrl-h: 30vmin;
+        } 
+        * { box-sizing: border-box; -webkit-user-select: none; }
+        body { 
+            font-family: 'Courier New', Courier, sans-serif; 
+            background: #e0e0e0; color: #000; 
+            margin: 0; display: flex; align-items: center; justify-content: center; 
+            height: 100vh; overflow: hidden;
+        }
+        .system-unit {
+            width: 48vh; 
+            max-width: 95vw;
+            display: flex; flex-direction: column;
+            border: var(--lw) solid var(--line);
+            background: #fff; 
+        }
+        #custom-context-menu {
+            display: none;
+            position: fixed;
+            background: #fff;
+            border: var(--lw) solid var(--line);
+            z-index: 9999;
+            min-width: 150px;
+            box-shadow: 4px 4px 0px #000;
+        }
+        .menu-item {
+            padding: 10px 15px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.1s;
+            border-bottom: var(--lw) solid #eee;
+        }
+        .menu-item:last-child { border-bottom: none; }
+        .menu-item:hover { background: #000; color: #fff; }
+
+        .header {
+            padding: 1vmin 1.5vmin; border-bottom: var(--lw) solid var(--line);
+            display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+        }
+
+        .header-colors { display: flex; gap: 8px; align-items: center; }
+        input[type="color"] {
+            -webkit-appearance: none; border: var(--lw) solid var(--line); 
+            width: 14px; height: 14px; cursor: pointer; background: none; padding: 0;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; }
+
+        .dl-group { display: flex; gap: 4px; justify-content: flex-end; }
+        .tag { 
+            cursor: pointer; padding: 2px 6px; border: var(--lw) solid var(--line); 
+            font-size: 9px; font-weight: normal; transition: 0.1s; background: #fff;
+        }
+        .tag:hover { background: #000; color: #fff; }
+        .rand-tag { border-style: solid; margin: 0 auto; white-space: nowrap; }
+
+        .view-zone {
+            width: 100%; aspect-ratio: 3/4;
+            display: flex; align-items: center; justify-content: center;
+            background: #fff; position: relative; overflow: hidden;
+            cursor: default; 
+        }
+        canvas { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: auto; }
+
+        .dashboard { width: 100%; border-top: var(--lw) solid var(--line); background: #fff; }
+
+        .up-box { position: relative; width: 100%; }
+        .btn-up {
+            background: #000; color: #fff; border: none; padding: 12px; cursor: pointer; 
+            font-family: inherit; font-size: 10px; width: 100%; outline: none;
+        }
+        #reset-x {
+            position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+            color: #888; cursor: pointer; font-family: 'Courier New', Courier, sans-serif;
+            font-size: 16px; font-weight: bold; display: none; padding: 5px;
+        }
+
+        .param-grid { display: grid; grid-template-columns: 1fr 1fr; border-top: var(--lw) solid var(--line); }
+        .cell {
+            padding: 8px 12px; border-bottom: var(--lw) solid var(--line); border-right: var(--lw) solid var(--line);
+        }
+        .cell:nth-child(2n) { border-right: none; }
+        .cell:nth-last-child(-n+2) { border-bottom: none; }
+
+        label { font-size: 8px; color: #666; display: flex; justify-content: space-between; margin-bottom: 4px; font-weight: bold; }
+        label span { color: #000; }
+
+        input[type="range"] {
+            -webkit-appearance: none; width: 100%; height: 1px; background: #000; margin: 10px 0; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 8px; height: 14px; background: #000; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+<div id="custom-context-menu">
+    <div class="menu-item" onclick="copyCanvasImage()">复制图片 COPY IMAGE</div>
+</div>
+<div class="system-unit">
+    <div class="header">
+        <div class="header-item">
+            <div class="header-colors">
+                <input type="color" id="c1" value="#000000" title="印章颜色">
+                <input type="color" id="c2" value="#ffffff" title="背景颜色">
+            </div>
+        </div>
+        <div class="header-item">
+            <span class="tag rand-tag" onclick="nextPalette()">随机配色 RANDOM</span>
+        </div>
+        <div class="header-item dl-group">
+            <span class="tag" onclick="dl('jpg')">JPG</span>
+            <span class="tag" onclick="dl('png')">PNG</span>
+        </div>
+    </div>
+    <div class="view-zone" id="v-zone">
+        <canvas id="c"></canvas>
+    </div>
+    <div class="dashboard">
+        <div class="up-box">
+            <button class="btn-up" onclick="document.getElementById('f').click()">上传文件 IMPORT SOURCE</button>
+            <span id="reset-x" onclick="clearAll()">X</span>
+        </div>
+        <input type="file" id="f" hidden accept="image/*">
+
+        <div class="param-grid">
+            <div class="cell"><label>简化 Simplify <span id="v-simp">0</span></label><input type="range" id="simp" min="0" max="15" step="0.1" value="0"></div>
+            <div class="cell"><label>敏感 Sensitivity <span id="v-sens">230</span></label><input type="range" id="sens" min="0" max="255" value="230"></div>
+            <div class="cell"><label>外框 Outline <span id="v-border">8</span></label><input type="range" id="borderWidth" min="1" max="25" value="8"></div>
+            <div class="cell"><label>斑驳 Grain <span id="v-grain">75</span></label><input type="range" id="grainDensity" min="0" max="100" value="75"></div>
+            <div class="cell"><label>大小 Size <span id="v-size">1.8</span></label><input type="range" id="grainSize" min="1" max="5" step="0.1" value="1.8"></div>
+            <div class="cell"><label>缩放 Zoom <span id="v-zoom">1.0</span></label><input type="range" id="zoom" min="0.1" max="3.0" step="0.05" value="1.0"></div>
+        </div>
+    </div>
+</div>
+<script>
+    const cvs = document.getElementById('c'), ctx = cvs.getContext('2d', {alpha: true});
+    const vZone = document.getElementById('v-zone');
+    const customMenu = document.getElementById('custom-context-menu');
+    let imgSource = null, ticking = false, colorTicking = false;
+
+    const EXPORT_W = 4093;
+    const EXPORT_H = 5787;
+    const MASTER_RES = 1024; // 优化：预览分辨率从2048降至1024，速度提升4倍
+
+    const candyPalettes = [
+        ['#FF6B6B', '#4ECDC4'], ['#FFE66D', '#FF6B6B'], ['#778BEB', '#F7D794'], ['#63CDDA', '#CF6A87'], ['#786FA6', '#F8A5C2'],
+        ['#546DE5', '#E15F41'], ['#E66767', '#303952'], ['#F5CD79', '#596275'], ['#F78FB3', '#3DC1D3'], ['#574B90', '#F19066'],
+        ['#00D2D3', '#54A0FF'], ['#FF9F43', '#0ABDE3'], ['#EE5253', '#00D2D3'], ['#10AC84', '#FF9FF3'], ['#5F27CD', '#FF9F43'],
+        ['#FF4D4D', '#32FF7E'], ['#7D5FFF', '#FFF200']
+    ];
+    let pIdx = Math.floor(Math.random() * candyPalettes.length);
+
+    let masterInkCanvas = document.createElement('canvas');
+    let noiseCanvas = document.createElement('canvas');
+    // 性能优化：预创建离屏画布减少GC
+    const offC1 = document.createElement('canvas'), offCtx1 = offC1.getContext('2d');
+    const offC2 = document.createElement('canvas'), offCtx2 = offC2.getContext('2d');
+    const offC3 = document.createElement('canvas'), offCtx3 = offC3.getContext('2d');
+
+    vZone.addEventListener('contextmenu', e => {
+        if (!imgSource) return;
+        e.preventDefault();
+        customMenu.style.display = 'block';
+        customMenu.style.left = e.clientX + 'px';
+        customMenu.style.top = e.clientY + 'px';
+    });
+
+    window.addEventListener('click', () => { customMenu.style.display = 'none'; });
+
+    async function copyCanvasImage() {
+        try {
+            const blob = await new Promise(resolve => cvs.toBlob(resolve, 'image/png'));
+            const item = new ClipboardItem({ "image/png": blob });
+            await navigator.clipboard.write([item]);
+            const btn = document.querySelector('.menu-item');
+            btn.innerText = "已复制 SUCCESS!";
+            setTimeout(() => { btn.innerText = "复制图片 COPY IMAGE"; }, 1000);
+        } catch (err) { alert("复制失败"); }
+    }
+
+    function nextPalette() {
+        pIdx = (pIdx + 1) % candyPalettes.length;
+        document.getElementById('c1').value = candyPalettes[pIdx][0];
+        document.getElementById('c2').value = candyPalettes[pIdx][1];
+        renderDisplay();
+    }
+
+    document.getElementById('f').onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const tempImg = new Image();
+            tempImg.onload = () => {
+                imgSource = tempImg;
+                cvs.style.display = 'block';
+                document.getElementById('reset-x').style.display = 'block';
+                updateMasterInk(); 
+                updateUI();
+            };
+            tempImg.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    function clearAll() {
+        imgSource = null; cvs.style.display = 'none';
+        vZone.style.background = "#fff";
+        document.getElementById('reset-x').style.display = 'none';
+        document.getElementById('f').value = '';
+    }
+
+    function updateUI() {
+        const ids = ['simp','sens','borderWidth','grainDensity','grainSize','zoom'];
+        ids.forEach(id => {
+            const displayId = id === 'borderWidth' ? 'v-border' : id === 'grainDensity' ? 'v-grain' : id === 'grainSize' ? 'v-size' : 'v-' + id;
+            const el = document.getElementById(displayId);
+            if(el) el.innerText = document.getElementById(id).value;
+        });
+    }
+
+    document.querySelectorAll('input[type="range"]').forEach(i => {
+        i.oninput = () => {
+            updateUI();
+            if (i.id === 'zoom') {
+                renderDisplay();
+            } else {
+                if (!ticking && imgSource) {
+                    requestAnimationFrame(() => { updateMasterInk(); ticking = false; });
+                    ticking = true;
+                }
+            }
+        };
+    });
+
+    document.querySelectorAll('input[type="color"]').forEach(i => {
+        i.oninput = () => {
+            if (!colorTicking) {
+                requestAnimationFrame(() => {
+                    renderDisplay();
+                    colorTicking = false;
+                });
+                colorTicking = true;
+            }
+        };
+    });
+
+    // 优化：快速生成噪点（使用更小比例生成再放大，减少像素计算量）
+    function generateNoise(w, h, size) {
+        const sw = Math.ceil(w/2), sh = Math.ceil(h/2);
+        noiseCanvas.width = sw; noiseCanvas.height = sh;
+        const nCtx = noiseCanvas.getContext('2d');
+        const idata = nCtx.createImageData(sw, sh);
+        const buf = new Uint32Array(idata.data.buffer);
+        for (let i = 0; i < buf.length; i++) {
+            const v = (Math.random() * 255) | 0;
+            buf[i] = (255 << 24) | (v << 16) | (v << 8) | v;
+        }
+        nCtx.putImageData(idata, 0, 0);
+        
+        offC3.width = w; offC3.height = h;
+        offCtx3.filter = `blur(${size}px) contrast(400%)`;
+        offCtx3.drawImage(noiseCanvas, 0, 0, w, h);
+    }
+
+    function updateMasterInk() {
+        if (!imgSource) return;
+        const targetW = MASTER_RES;
+        const targetH = Math.floor(MASTER_RES * (imgSource.height / imgSource.width));
+        masterInkCanvas.width = targetW;
+        masterInkCanvas.height = targetH;
+        
+        const iCtx = masterInkCanvas.getContext('2d');
+        const sens = parseFloat(document.getElementById('sens').value);
+        const simp = parseFloat(document.getElementById('simp').value);
+        const border = parseFloat(document.getElementById('borderWidth').value);
+        const density = parseFloat(document.getElementById('grainDensity').value);
+        const gSize = parseFloat(document.getElementById('grainSize').value);
+
+        offC1.width = targetW; offC1.height = targetH;
+        if(simp > 0) offCtx1.filter = `blur(${simp}px)`;
+        offCtx1.drawImage(imgSource, 0, 0, targetW, targetH);
+
+        const maskData = offCtx1.getImageData(0,0,targetW,targetH);
+        const mD = maskData.data;
+
+        // 二值化处理核心循环优化
+        for(let i=0; i<mD.length; i+=4) {
+            const v = (mD[i]+mD[i+1]+mD[i+2]) < sens * 3 ? 0 : 255;
+            mD[i] = mD[i+1] = mD[i+2] = v;
+            mD[i+3] = v === 0 ? 255 : 0;
+        }
+        
+        offC2.width = targetW; offC2.height = targetH;
+        offCtx2.putImageData(maskData, 0, 0);
+
+        // 生成边缘膨胀效果
+        const bC = document.createElement('canvas'); bC.width = targetW; bC.height = targetH;
+        const bCtx = bC.getContext('2d');
+        bCtx.filter = `blur(${border}px)`;
+        bCtx.drawImage(offC2, 0, 0);
+
+        generateNoise(targetW, targetH, gSize);
+        
+        const distD = bCtx.getImageData(0,0,targetW,targetH).data;
+        const textD = offCtx3.getImageData(0,0,targetW,targetH).data;
+        const outImageData = iCtx.createImageData(targetW, targetH);
+        const oD = outImageData.data;
+        const densVal = density / 100;
+
+        for(let i=0; i<mD.length; i+=4) {
+            if(mD[i+3] > 128) {
+                const depth = distD[i+3]/255;
+                const grain = textD[i]/255;
+                if(!(depth > 0.45 && grain > (1 - (depth - 0.45) * densVal * 1.5))) {
+                    oD[i+3] = 255; // 仅设置Alpha，颜色在renderDisplay处理
+                }
+            }
+        }
+        iCtx.putImageData(outImageData, 0, 0);
+        renderDisplay();
+    }
+
+    function renderDisplay() {
+        if (!imgSource || !masterInkCanvas.width) return;
+        const zoom = parseFloat(document.getElementById('zoom').value);
+        const c1 = document.getElementById('c1').value;
+        const c2 = document.getElementById('c2').value;
+
+        cvs.width = 1200;
+        cvs.height = 1600;
+        vZone.style.background = c2;
+
+        ctx.fillStyle = c2;
+        ctx.fillRect(0, 0, cvs.width, cvs.height);
+
+        const dW = cvs.width * zoom;
+        const dH = (masterInkCanvas.height * (cvs.width / masterInkCanvas.width)) * zoom;
+        const oX = (cvs.width - dW) / 2;
+        const oY = (cvs.height - dH) / 2;
+
+        // 使用离屏画布进行染色
+        offC1.width = cvs.width; offC1.height = cvs.height;
+        offCtx1.filter = 'none';
+        offCtx1.globalCompositeOperation = 'source-over';
+        offCtx1.fillStyle = c1;
+        offCtx1.fillRect(0, 0, offC1.width, offC1.height);
+        offCtx1.globalCompositeOperation = 'destination-in';
+        offCtx1.drawImage(masterInkCanvas, oX, oY, dW, dH);
+
+        ctx.drawImage(offC1, 0, 0);
+    }
+
+    async function dl(format) {
+        if(!imgSource) return;
+        const outC = document.createElement('canvas');
+        outC.width = EXPORT_W;
+        outC.height = EXPORT_H;
+        const outCtx = outC.getContext('2d');
+        const zoom = parseFloat(document.getElementById('zoom').value);
+        const c1 = document.getElementById('c1').value;
+        const c2 = document.getElementById('c2').value;
+
+        if (format === 'jpg') {
+            outCtx.fillStyle = c2;
+            outCtx.fillRect(0, 0, EXPORT_W, EXPORT_H);
+        }
+
+        const dW = EXPORT_W * zoom;
+        const dH = (masterInkCanvas.height * (EXPORT_W / masterInkCanvas.width)) * zoom;
+        const oX = (EXPORT_W - dW) / 2;
+        const oY = (EXPORT_H - dH) / 2;
+
+        const tintC = document.createElement('canvas');
+        tintC.width = EXPORT_W; tintC.height = EXPORT_H;
+        const tCtx = tintC.getContext('2d');
+        tCtx.fillStyle = c1;
+        tCtx.fillRect(0, 0, EXPORT_W, EXPORT_H);
+        tCtx.globalCompositeOperation = 'destination-in';
+        tCtx.drawImage(masterInkCanvas, oX, oY, dW, dH);
+
+        outCtx.drawImage(tintC, 0, 0);
+
+        const name = `STAMP_HIRES_A3_${Date.now()}`;
+        const dataUrl = outC.toDataURL(format === 'png' ? 'image/png' : 'image/jpeg', 1.0);
+        save(dataUrl, `${name}.${format}`);
+    }
+
+    function save(url, filename) {
+        const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    }
+</script>
+</body>
+</html>
+    
+  </body>
+  
+</html>
